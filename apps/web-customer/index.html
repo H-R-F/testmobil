@@ -1,0 +1,159 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1" />
+  <meta name="theme-color" content="#0B5FFF" />
+  <title>Testmobil — We drive you &amp; your car home</title>
+  <link rel="stylesheet" href="/styles.css" />
+</head>
+<body>
+  <noscript>Testmobil needs JavaScript to track your driver in real time.</noscript>
+
+  <header class="topbar">
+    <span class="brand">🚗 Testmobil</span>
+    <button id="btn-logout" class="ghost hidden">Sign out</button>
+  </header>
+
+  <!-- ════════ AUTH ════════ -->
+  <main id="view-auth" class="screen">
+    <div class="hero">
+      <h1>Don't drive.<br />We'll drive you <em>and your car</em> home.</h1>
+      <p class="sub">A verified designated driver comes to you, takes the wheel of <strong>your</strong> vehicle, and gets you and your car home safely.</p>
+    </div>
+    <form id="login-form" class="card form">
+      <h2>Sign in</h2>
+      <label>Email <input name="email" type="email" required autocomplete="email" inputmode="email" /></label>
+      <label>Password <input name="password" type="password" required minlength="8" autocomplete="current-password" /></label>
+      <button class="cta" type="submit">Sign in</button>
+      <p class="hint">New here? Use the registration below.</p>
+    </form>
+    <details class="card">
+      <summary>Create an account</summary>
+      <form id="reg-form" class="form">
+        <label>Full name <input name="fullName" required minlength="2" autocomplete="name" /></label>
+        <label>Phone <input name="phone" required minlength="6" autocomplete="tel" inputmode="tel" /></label>
+        <label>Email <input name="email" type="email" required autocomplete="email" /></label>
+        <label>Password <input name="password" type="password" required minlength="8" autocomplete="new-password" /></label>
+        <button class="cta secondary" type="submit">Register as customer</button>
+      </form>
+    </details>
+  </main>
+
+  <!-- ════════ HOME / REQUEST ════════ -->
+  <main id="view-home" class="screen hidden">
+    <h1>Need a driver?</h1>
+    <section class="card" id="vehicle-card">
+      <h2>Your vehicle</h2>
+      <div id="vehicle-list" class="chips"></div>
+      <form id="vehicle-form" class="form compact">
+        <label>Plate <input name="plate" required placeholder="B-TM-1234" style="text-transform:uppercase" /></label>
+        <div class="row">
+          <label>Make <input name="make" required placeholder="VW" /></label>
+          <label>Model <input name="model" required placeholder="Golf" /></label>
+        </div>
+        <label>Gearbox
+          <select name="transmission"><option value="AUTOMATIC">Automatic</option><option value="MANUAL">Manual</option></select>
+        </label>
+        <button class="cta small" type="submit">Add vehicle</button>
+      </form>
+    </section>
+
+    <form id="request-form" class="card form">
+      <h2>Request a driver</h2>
+      <label>Pickup (where are you?)
+        <input name="pickup" required placeholder="e.g. Bar Nineteen, Mitte" />
+      </label>
+      <label>Destination
+        <input name="destination" required placeholder="Home" />
+      </label>
+      <div class="row">
+        <label>Pickup lat <input name="plat" type="number" step="any" required value="52.52" /></label>
+        <label>Pickup lng <input name="plng" type="number" step="any" required value="13.405" /></label>
+      </div>
+      <div class="row">
+        <label>Dest lat <input name="dlat" type="number" step="any" required value="52.535" /></label>
+        <label>Dest lng <input name="dlng" type="number" step="any" required value="13.42" /></label>
+      </div>
+      <button type="button" id="btn-geolocate" class="cta tertiary">📍 Use my current location for pickup</button>
+      <label>Note to driver (optional)
+        <textarea name="note" rows="2" maxlength="200" placeholder="e.g. Blue Golf, keyless start"></textarea>
+      </label>
+      <button class="cta big" type="submit" id="btn-quote">Get price estimate</button>
+    </form>
+
+    <section id="quote-box" class="card hidden">
+      <h2>Your price</h2>
+      <ul id="quote-items" class="items"></ul>
+      <p class="total">Total: <strong id="quote-total"></strong> <span class="muted">(locked once you confirm)</span></p>
+      <p class="muted small">Valid until <span id="quote-exp"></span>. Driver payout + platform commission included — no cash changes hands.</p>
+      <button id="btn-confirm" class="cta big">✅ Confirm &amp; find me a driver</button>
+      <button id="btn-discard" class="ghost">Discard</button>
+    </section>
+  </main>
+
+  <!-- ════════ ACTIVE TRIP ════════ -->
+  <main id="view-trip" class="screen hidden">
+    <div class="status-banner" id="trip-banner">…</div>
+    <section class="card">
+      <h2 id="trip-title">Trip</h2>
+      <p class="route">📍 <span id="t-pickup"></span> → 🏠 <span id="t-dest"></span></p>
+      <p class="price-line">Locked price: <strong id="t-price"></strong></p>
+      <div id="driver-box" class="driver hidden">
+        <div class="avatar" id="d-avatar">🧑‍✈️</div>
+        <div><strong id="d-name"></strong><div class="muted" id="d-meta"></div></div>
+        <span class="badge verified" id="d-verified">✔ Verified</span>
+      </div>
+      <p class="eta muted" id="t-eta"></p>
+      <div class="progress" aria-hidden="true"><div id="prog-bar"></div></div>
+      <ol class="timeline" id="t-timeline"></ol>
+    </section>
+
+    <!-- Handover (§7) -->
+    <section class="card hidden" id="handover-box">
+      <h2>🔑 Vehicle handover</h2>
+      <p class="muted small">Your driver recorded the vehicle condition. Review and confirm — the trip starts only after <strong>both</strong> sides confirm.</p>
+      <div id="ho-details"></div>
+      <button class="cta big" id="btn-ho-confirm">I confirm the handover</button>
+      <button class="danger ghost" id="btn-ho-reject">Something is wrong</button>
+    </section>
+
+    <!-- Completed -->
+    <section class="card hidden" id="done-box">
+      <h2>You're home 🎉</h2>
+      <p id="done-summary" class="muted"></p>
+      <div id="rate-box">
+        <p>Rate your driver:</p>
+        <div class="stars" id="stars" role="radiogroup" aria-label="Rating">
+          <button data-s="1" aria-label="1 star">★</button><button data-s="2" aria-label="2 stars">★</button><button data-s="3" aria-label="3 stars">★</button><button data-s="4" aria-label="4 stars">★</button><button data-s="5" aria-label="5 stars">★</button>
+        </div>
+        <input id="rate-comment" placeholder="Comment (optional)" maxlength="200" />
+        <button class="cta" id="btn-rate">Send rating</button>
+      </div>
+      <button class="ghost" id="btn-new-trip">Request another driver</button>
+    </section>
+
+    <div class="actions">
+      <button class="danger" id="btn-cancel">Cancel trip</button>
+      <button class="sos" id="btn-sos" aria-label="Emergency SOS">🆘 SOS</button>
+    </div>
+  </main>
+
+  <!-- ════════ HISTORY ════════ -->
+  <main id="view-history" class="screen hidden">
+    <h1>Trip history</h1>
+    <div id="history-list"></div>
+    <p class="muted empty hidden" id="history-empty">No trips yet.</p>
+  </main>
+
+  <nav class="tabbar hidden" id="tabbar">
+    <button data-tab="home" class="on">🚕 Request</button>
+    <button data-tab="trip">📡 Trip</button>
+    <button data-tab="history">🧾 History</button>
+  </nav>
+
+  <div id="toast" class="toast hidden" role="status" aria-live="polite"></div>
+
+  <script src="/app.js" defer></script>
+</body>
+</html>

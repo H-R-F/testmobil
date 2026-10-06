@@ -7,6 +7,7 @@ import fp from 'fastify-plugin';
 import { Role, ErrorCode, type RoleT } from '@testmobil/shared';
 import { verifyToken, type TokenClaims } from '../modules/auth/service.js';
 import { AppError } from '../errors.js';
+import { ZodError } from 'zod';
 import type { EnvT } from '../env.js';
 
 declare module 'fastify' {
@@ -65,6 +66,10 @@ export const errorEnvelopePlugin = fp(async (app: FastifyInstance) => {
       const ae = err as AppError;
       return reply.status(ae.httpStatus).send({ code: ae.code ?? ErrorCode.INTERNAL, message: ae.message, details: ae.details, requestId });
     }
+    // Zod schema .parse() failures -> canonical 400 VALIDATION_FAILED envelope (§21 input validation).
+    if (err instanceof ZodError) {
+      return reply.status(400).send({ code: ErrorCode.VALIDATION_FAILED, message: 'Invalid request.', details: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`), requestId });
+    }
     if (err.validation || err.statusCode === 400) {
       return reply.status(400).send({ code: ErrorCode.VALIDATION_FAILED, message: 'Invalid request.', details: err.message, requestId });
     }
@@ -75,6 +80,10 @@ export const errorEnvelopePlugin = fp(async (app: FastifyInstance) => {
 
 /** Rate limiting (per IP+route class). SOS route is exempt from hard-block (§7 note in proposal). */
 const buckets = new Map<string, number[]>();
+/** Test hook: clear sliding-window buckets so per-file app rebuilds don't leak 429s. */
+export function resetRateLimiter(): void {
+  buckets.clear();
+}
 export const rateLimitPlugin = fp(async (app: FastifyInstance, opts: { maxPerMin: number }) => {
   app.addHook('onRequest', async (req, reply) => {
     if (req.url.includes('/sos')) return; // never throttle emergency path into silence

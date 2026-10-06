@@ -7,11 +7,13 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import type { FastifyInstance } from 'fastify';
 import { buildApp } from '../src/app.js';
 import { resetDb, db } from '../src/db/store.js';
+import { resetRateLimiter } from '../src/plugins/security.js';
 import { TripState } from '@testmobil/shared';
 
 let app: FastifyInstance;
 beforeEach(async () => {
   resetDb();
+  resetRateLimiter();
   app = await buildApp();
 });
 
@@ -112,7 +114,8 @@ describe('booking flow: quote → confirm (§5/§9/§10)', () => {
     expect(q.breakdown.items.map((i: any) => i.key)).toContain('BASE_FEE');
     const t = await app.inject({ method: 'POST', url: '/api/v1/trips', headers: c.auth, payload: { quoteId: q.id, vehicleId: vehicles[0].id } });
     expect(t.statusCode).toBe(200);
-    expect(t.json().status).toBe(TripState.REQUESTED);
+    // Creation + immediate matching happen atomically; the client sees SEARCHING_DRIVER (§5 flow).
+    expect(t.json().status).toBe(TripState.SEARCHING_DRIVER);
     expect(t.json().quoteSnapshot.totalMinor).toBe(q.breakdown.totalMinor);
     // quote cannot be reused
     const again = await app.inject({ method: 'POST', url: '/api/v1/trips', headers: c.auth, payload: { quoteId: q.id, vehicleId: vehicles[0].id } });
@@ -154,10 +157,10 @@ describe('full happy path dispatch + handover + completion (§7/§8/§11)', () =
     await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/transition`, headers: d.auth, payload: { to: TripState.DRIVER_EN_ROUTE } });
     await app.inject({ method: 'POST', url: '/api/v1/drivers/location-ping', headers: d.auth, payload: { lat: 52.52, lng: 13.405 } });
     await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/transition`, headers: d.auth, payload: { to: TripState.DRIVER_ARRIVED } });
-    // try to jump straight to started → invalid transition
+    // try to jump straight to started → domain safety gate (§7/§8): handover must be dual-confirmed first
     const illegal = await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/transition`, headers: d.auth, payload: { to: TripState.TRIP_STARTED } });
     expect(illegal.statusCode).toBe(422);
-    expect(illegal.json().code).toBe('TRIP_INVALID_TRANSITION');
+    expect(illegal.json().code).toBe('HANDOVER_INCOMPLETE');
 
     const ho = (await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/handover/before`, headers: d.auth, payload: { odometerKm: 45210, fuelLevelPercent: 62, damageNotes: [{ location: 'rear bumper', description: 'existing scratch' }], gps: { lat: 52.52, lng: 13.405 } } })).json();
     // customer tries to confirm before driver signed
@@ -242,7 +245,8 @@ describe('SOS & incidents (§13)', () => {
     const vehicles = (await app.inject({ method: 'GET', url: '/api/v1/customers/vehicles', headers: c.auth })).json() as any[];
     const q = (await app.inject({ method: 'POST', url: '/api/v1/pricing/quote', headers: c.auth, payload: { pickup: { lat: 52.52, lng: 13.405 }, destination: { lat: 52.545, lng: 13.44 } } })).json();
     const trip = (await app.inject({ method: 'POST', url: '/api/v1/trips', headers: c.auth, payload: { quoteId: q.id, vehicleId: vehicles[0].id } })).json();
-    // fast-forward to TRIP_STARTED
+    // Real dispatch path: driver accepts the offer, then fast-forward to TRIP_STARTED (§8 machine).
+    await acceptOfferFor(d, trip.id);
     for (const s of [TripState.DRIVER_EN_ROUTE]) await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/transition`, headers: d.auth, payload: { to: s } });
     await app.inject({ method: 'POST', url: '/api/v1/drivers/location-ping', headers: d.auth, payload: { lat: 52.52, lng: 13.405 } });
     await app.inject({ method: 'POST', url: `/api/v1/trips/${trip.id}/transition`, headers: d.auth, payload: { to: TripState.DRIVER_ARRIVED } });
