@@ -1,0 +1,30 @@
+{
+  "name": "testmobil",
+  "private": true,
+  "version": "0.1.0",
+  "description": "On-demand designated driver platform — 'Don't drive. We'll drive you and your car home.'",
+  "workspaces": [
+    "packages/*",
+    "apps/api",
+    "apps/web-customer",
+    "apps/web-driver",
+    "apps/web-admin"
+  ],
+  "scripts": {
+    "dev:api": "npm run dev -w @testmobil/api",
+    "dev:customer": "npm run dev -w @testmobil/web-customer",
+    "dev:driver": "npm run dev -w @testmobil/web-driver",
+    "dev:admin": "npm run dev -w @testmobil/web-admin",
+    "build": "npm run build --workspaces --if-present",
+    "typecheck": "tsc -b packages/shared apps/api",
+    "test": "npm run test:shared && npm run test:api",
+    "test:api": "npm run test -w @testmobil/api",
+    "test:shared": "npm run test -w @testmobil/shared",
+    "lint": "eslint . --ext .ts,.tsx"
+  },
+  "devDependencies": {
+    "@types/node": "^26.6.4",
+    "typescript": "^5.5.4",
+    "vitest": "^2.0.5"
+  }
+}

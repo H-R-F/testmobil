@@ -1,0 +1,39 @@
+# Dev environment — see docs/01_ARCHITECTURE_PROPOSAL.md §12
+# NOTE: Docker CLI availability in the current sandbox is unverified (Phase 1 risk R-D).
+# The API also runs against SQLite-free "in-memory repo" mode for tests without any of this.
+services:
+  postgres:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_USER: testmobil
+      POSTGRES_PASSWORD: testmobil
+      POSTGRES_DB: testmobil
+    ports: ["5432:5432"]
+    volumes: [pgdata:/var/lib/postgresql/data]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U testmobil"]
+      interval: 5s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    ports: ["6379:6379"]
+    volumes: [redisdata:/data]
+
+  minio:
+    image: minio/minio:latest
+    command: server /data --console-address ":9001"
+    environment:
+      MINIO_ROOT_USER: change-me
+      MINIO_ROOT_PASSWORD: change-me-too
+    ports: ["9000:9000", "9001:9001"]
+    volumes: [miniodata:/data]
+
+  mailhog: # local SMTP capture for email verification links
+    image: mailhog/mailhog:latest
+    ports: ["1025:1025", "8025:8025"]
+
+volumes:
+  pgdata: {}
+  redisdata: {}
+  miniodata: {}
