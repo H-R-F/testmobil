@@ -1,0 +1,1 @@
+{"root":["../src/dto.ts","../src/geo.ts","../src/index.ts","../src/pricing.ts","../src/roles.ts","../src/trip-state-machine.ts","../test/pricing.test.ts","../test/trip-state-machine.test.ts"],"version":"5.9.3"}

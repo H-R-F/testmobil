@@ -2,6 +2,7 @@ import fp from 'fastify-plugin';
 import { Role, ErrorCode } from '@testmobil/shared';
 import { verifyToken } from '../modules/auth/service.js';
 import { AppError } from '../errors.js';
+import { ZodError } from 'zod';
 export const ctxFromClaims = (c) => ({
     userId: c.sub,
     role: c.role,
@@ -52,6 +53,10 @@ export const errorEnvelopePlugin = fp(async (app) => {
             const ae = err;
             return reply.status(ae.httpStatus).send({ code: ae.code ?? ErrorCode.INTERNAL, message: ae.message, details: ae.details, requestId });
         }
+        // Zod schema .parse() failures -> canonical 400 VALIDATION_FAILED envelope (§21 input validation).
+        if (err instanceof ZodError) {
+            return reply.status(400).send({ code: ErrorCode.VALIDATION_FAILED, message: 'Invalid request.', details: err.issues.map((i) => `${i.path.join('.')}: ${i.message}`), requestId });
+        }
         if (err.validation || err.statusCode === 400) {
             return reply.status(400).send({ code: ErrorCode.VALIDATION_FAILED, message: 'Invalid request.', details: err.message, requestId });
         }
@@ -61,6 +66,10 @@ export const errorEnvelopePlugin = fp(async (app) => {
 });
 /** Rate limiting (per IP+route class). SOS route is exempt from hard-block (§7 note in proposal). */
 const buckets = new Map();
+/** Test hook: clear sliding-window buckets so per-file app rebuilds don't leak 429s. */
+export function resetRateLimiter() {
+    buckets.clear();
+}
 export const rateLimitPlugin = fp(async (app, opts) => {
     app.addHook('onRequest', async (req, reply) => {
         if (req.url.includes('/sos'))
